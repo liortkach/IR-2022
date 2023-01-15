@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify
 import pickle
 from google.cloud import storage
 from nltk.corpus import stopwords
+from time import time
 
 import BM25
 from Tokenizer import Tokenizer
@@ -101,6 +102,7 @@ def search():
     '''
     res = []
     query = request.args.get('query', '')
+     t_start = time()
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
@@ -110,7 +112,8 @@ def search():
     resTitle = getDocListResultWithPageRank(app.title_stem_index, query_tokens, "_title_stem", 100, app.page_rank, 0.75)
     res = merge_results(resTitle, resBM25Body, 100)
     res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
-
+    duration = time() - t_start
+    print("Retrieve Time is: " ,duration )
     # END SOLUTION
     return jsonify(res)
 
