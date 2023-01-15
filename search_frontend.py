@@ -4,7 +4,7 @@ import pickle
 from google.cloud import storage
 from nltk.corpus import stopwords
 from Tokenizer import Tokenizer
-from search_helper import *
+from search_backend import *
 from BM25 import *
 import csv
 import pandas as pd
