@@ -111,7 +111,7 @@ def search():
     query_tokens = list(set(app.tokenizer.tokenize(query, True)))
 
     resBM25Body = app.BM25_body.search(query_tokens, 100, 0.25)
-    resTitle = getDocListResult(app.title_stem_index, query_tokens, "_title_stem", 100, 0.75)
+    resTitle = getDocListResultWithPageRank(app.title_stem_index, query_tokens, "_title_stem", 100, app.page_rank, 0.75)
     res = merge_results(resTitle, resBM25Body, 100)
     res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
 
