@@ -9,7 +9,6 @@ import pandas as pd
 
 class CosineSim:
 
-
     def __init__(self, index, DL, index_type, page_rank,  doc_norm):
         self.index = index
         self.DL = DL
@@ -48,7 +47,7 @@ class CosineSim:
         return w_pls_dict
 
 
-    def calcCosineSim(self, query, index, N=100, cosineWeight=0.333):
+    def calcCosineSim(self, query, N=100, cosineWeight=0.333):
 
         counter = Counter(query)
 
