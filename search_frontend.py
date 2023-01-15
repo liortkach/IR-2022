@@ -67,10 +67,6 @@ class MyFlaskApp(Flask):
 
             elif blob.name == "pageViews.pkl":
                 with blob.open('rb') as openfile:
-                    self.doc_norm = pickle.load(openfile)
-
-            elif blob.name == "pageViews.pkl":
-                with blob.open('rb') as openfile:
                     self.page_views = pickle.load(openfile)
 
         self.BM25_body = BM25(self.body_stem_index, self.DL_body, "_body_stem", app.page_rank, k1=1.5, b=0.6)
