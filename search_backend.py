@@ -14,12 +14,12 @@ from time import time
 
 bucket_name = "ir-208892166"
 
-def read_posting_list_bucket(inverted, w, index_type):
+def read_posting_list(inverted, w, index_type):
     TUPLE_SIZE = 6
     TF_MASK = 2 ** 16 - 1  # Masking the 16 low bits of an integer
     with closing(MultiFileReader(bucket_name)) as reader:
         locs = inverted.posting_locs[w]
-        b = reader.readBucket(locs, inverted.df[w] * TUPLE_SIZE, index_type)
+        b = reader.read(locs, inverted.df[w] * TUPLE_SIZE, index_type)
         posting_list = []
         for i in range(inverted.df[w]):
             doc_id = int.from_bytes(b[i*TUPLE_SIZE:i*TUPLE_SIZE+4], 'big')
@@ -27,20 +27,7 @@ def read_posting_list_bucket(inverted, w, index_type):
             posting_list.append((doc_id, tf))
     return posting_list
 
-def read_posting_list_local(inverted, w, index_type):
-    TUPLE_SIZE = 6
-    TF_MASK = 2 ** 16 - 1  # Masking the 16 low bits of an integer
-    with closing(MultiFileReader(bucket_name)) as reader:
-        locs = inverted.posting_locs[w]
-        b = reader.readLocal(locs, inverted.df[w] * TUPLE_SIZE, index_type)
-        posting_list = []
-        for i in range(inverted.df[w]):
-            doc_id = int.from_bytes(b[i*TUPLE_SIZE:i*TUPLE_SIZE+4], 'big')
-            tf = int.from_bytes(b[i*TUPLE_SIZE+4:(i+1)*TUPLE_SIZE], 'big')
-            posting_list.append((doc_id, tf))
-    return posting_list
-
-def get_posting_gen_bucket(index, query, index_type=""):
+def get_posting_gen(index, query, index_type=""):
     """
     This function returning the generator working with posting list.
     Parameters:
@@ -49,20 +36,7 @@ def get_posting_gen_bucket(index, query, index_type=""):
     """
     w_pls_dict = {}
     for term in query:
-        temp_pls = read_posting_list_bucket(index, term, index_type)
-        w_pls_dict[term] = temp_pls
-    return w_pls_dict
-
-def get_posting_gen_local(index, query, index_type=""):
-    """
-    This function returning the generator working with posting list.
-    Parameters:
-    ----------
-    index: inverted index
-    """
-    w_pls_dict = {}
-    for term in query:
-        temp_pls = read_posting_list_local(index, term, index_type)
+        temp_pls = read_posting_list(index, term, index_type)
         w_pls_dict[term] = temp_pls
     return w_pls_dict
 
@@ -232,7 +206,7 @@ def get_topN_score_for_queries(query, body_index, DL, doc_norm, N=3, cosineWeigh
                                                         value: list of pairs in the following format:(doc_id, score).
     """
 
-    w_pls_dict = get_posting_gen_bucket(body_index, query)
+    w_pls_dict = get_posting_gen(body_index, query)
     words = tuple(w_pls_dict.keys())
     pls = tuple(w_pls_dict.values())
     D = generate_document_tfidf_matrix(query, body_index, words, pls, DL)
@@ -243,7 +217,7 @@ def get_topN_score_for_queries(query, body_index, DL, doc_norm, N=3, cosineWeigh
 
 def getDocListResult(index, query, index_type, N, titleWeight):
     newDict = {}
-    w_pls_dict = get_posting_gen_bucket(index, query, index_type)
+    w_pls_dict = get_posting_gen(index, query, index_type)
     for term in query:
         if term in w_pls_dict.keys():
             for doc_id, tf in w_pls_dict[term]:
@@ -255,7 +229,7 @@ def getDocListResult(index, query, index_type, N, titleWeight):
 
 def getDocListResultWithPageRank(index, query, index_type, N, pageRank,titleWeight):
     newDict = {}
-    w_pls_dict = get_posting_gen_local(index, query, index_type)
+    w_pls_dict = get_posting_gen(index, query, index_type)
     for term in query:
         if term in w_pls_dict.keys():
             for doc_id, tf in w_pls_dict[term]:

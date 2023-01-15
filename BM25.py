@@ -3,7 +3,6 @@ import math
 import numpy as np
 from contextlib import closing
 from inverted_index_gcp import MultiFileReader
-from collections import defaultdict
 
 
 def get_candidate_documents(query_to_search, words, pls):
@@ -37,10 +36,10 @@ class BM25:
 
     def read_posting_list(self, index, w):
         TUPLE_SIZE = 6
-        TF_MASK = 2 ** 16 - 1
+        TF_MASK = 2 ** 16 - 1  # Masking the 16 low bits of an integer
         with closing(MultiFileReader(self.bucket_name)) as reader:
             locs = index.posting_locs[w]
-            b = reader.readLocal(locs, index.df[w] * TUPLE_SIZE, self.index_type)
+            b = reader.read(locs, index.df[w] * TUPLE_SIZE, self.index_type)
             posting_list = []
             for i in range(index.df[w]):
                 doc_id = int.from_bytes(b[i * TUPLE_SIZE:i * TUPLE_SIZE + 4], 'big')
@@ -163,10 +162,8 @@ def merge_results(title_scores, body_scores, N=3):
                                                         value: list of pairs in the following format:(doc_id,score).
     """
     # YOUR CODE HERE
-
     merged_dict = {}
 
-    merged_dict = defaultdict(float)
     for item in title_scores + body_scores:
         key, value = item
         merged_dict[key] += value

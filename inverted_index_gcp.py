@@ -14,6 +14,7 @@ from collections import defaultdict
 from contextlib import closing
 
 
+# Let's start with a small block size of 30 bytes just to test things out. 
 BLOCK_SIZE = 1999998
 bucket_name = "ir-208892166"
 client = storage.Client()
@@ -68,27 +69,13 @@ class MultiFileReader:
         self.bucket_name = bucket_name
         self._open_files = {}
 
-    # Read from the Bucket
-    def readBucket(self, locs, n_bytes, index_type=""):
+    def read(self, locs, n_bytes, index_type=""):
         b = []
         for f_name, offset in locs:
             if f_name not in self._open_files:
                 blob = my_bucket.get_blob(f"postings_gcp{index_type}/" + f_name)
                 self._open_files[f_name] = blob.open('rb')
             f = self._open_files[f_name]
-            f.seek(offset)
-            n_read = min(n_bytes, BLOCK_SIZE - offset)
-            b.append(f.read(n_read))
-            n_bytes -= n_read
-        return b''.join(b)
-
-    # Read locally
-    def readLocal(self, locs, n_bytes, index_type=""):
-        b = []
-        for f_name, offset in locs:
-            if f_name not in self._open_files:
-                self._open_files[f"postings_gcp{index_type}/" + f_name] = open(f"postings_gcp{index_type}/" + f_name, 'rb')
-            f = self._open_files[f"postings_gcp{index_type}/" + f_name]
             f.seek(offset)
             n_read = min(n_bytes, BLOCK_SIZE - offset)
             b.append(f.read(n_read))
@@ -171,7 +158,7 @@ class InvertedIndex:
         """
         with closing(MultiFileReader()) as reader:
             for w, locs in self.posting_locs.items():
-                b = reader.readBucket(locs[0], self.df[w] * TUPLE_SIZE)
+                b = reader.read(locs[0], self.df[w] * TUPLE_SIZE)
                 posting_list = []
                 for i in range(self.df[w]):
                     doc_id = int.from_bytes(b[i*TUPLE_SIZE:i*TUPLE_SIZE+4], 'big')
