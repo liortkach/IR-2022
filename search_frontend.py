@@ -136,7 +136,7 @@ def search_body():
       return jsonify(res)
     # BEGIN SOLUTION
     res = []
-    res_list = app.cosine_body.calcCosineSim(app.tokenizer.tokenize(query, False), N=100,1)
+    res_list = app.cosine_body.calcCosineSim(app.tokenizer.tokenize(query, False), 100,1)
     res_list = [(doc_id, app.doc_title_dict[doc_id]) for doc_id, score in res_list]
     res = res_list
     # END SOLUTION
