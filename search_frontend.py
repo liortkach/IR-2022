@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify
 import pickle
 from google.cloud import storage
 from nltk.corpus import stopwords
+from time import time
 
 import BM25
 from Tokenizer import Tokenizer
@@ -67,16 +68,12 @@ class MyFlaskApp(Flask):
 
             elif blob.name == "pageViews.pkl":
                 with blob.open('rb') as openfile:
-                    self.doc_norm = pickle.load(openfile)
-
-            elif blob.name == "pageViews.pkl":
-                with blob.open('rb') as openfile:
                     self.page_views = pickle.load(openfile)
 
         self.BM25_body = BM25(self.body_stem_index, self.DL_body, "_body_stem", app.page_rank, k1=1.5, b=0.6)
         self.BM25_title = BM25(self.title_stem_index, self.DL_title,  "_title_stem", app.page_rank, k1=2.2, b=0.85)
-        self.cosine_body = CosineSim(self.body_stem_index, self.DL_body, "_body_stem", app.page_rank, self.doc_norm)
-        self.cosine_title = CosineSim(self.title_stem_index, self.DL_title, "_title_stem", app.page_rank, self.doc_norm)
+        self.cosine_body = CosineSim(self.index_body, self.DL_body, "", app.page_rank, self.doc_norm)
+        #self.cosine_title = CosineSim(self.title_index, self.DL_title, "_title_stem", app.page_rank, self.doc_norm)
 
         super(MyFlaskApp, self).run(host=host, port=port, debug=debug, **options)
 
@@ -105,6 +102,7 @@ def search():
     '''
     res = []
     query = request.args.get('query', '')
+     t_start = time()
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
@@ -114,7 +112,8 @@ def search():
     resTitle = getDocListResultWithPageRank(app.title_stem_index, query_tokens, "_title_stem", 100, app.page_rank, 0.75)
     res = merge_results(resTitle, resBM25Body, 100)
     res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
-
+    duration = time() - t_start
+    print("Retrieve Time is: " ,duration )
     # END SOLUTION
     return jsonify(res)
 
@@ -140,7 +139,7 @@ def search_body():
       return jsonify(res)
     # BEGIN SOLUTION
     res = []
-    res_list = app.cosine_body.calcCosineSim(app.tokenizer.tokenize(query, False), app.index_body, app.DL_body, N=100)
+    res_list = app.cosine_body.calcCosineSim(app.tokenizer.tokenize(query, False), 100,1)
     res_list = [(doc_id, app.doc_title_dict[doc_id]) for doc_id, score in res_list]
     res = res_list
     # END SOLUTION
