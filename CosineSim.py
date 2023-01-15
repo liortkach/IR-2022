@@ -60,7 +60,7 @@ class CosineSim:
         simDict = defaultdict(float)
 
         for token in np.unique(query):
-            if token in index.df.keys():  # avoid terms that do not appear in the index.
+            if token in self.index.df.keys():  # avoid terms that do not appear in the index.
 
                 list_of_doc = pls[words.index(token)]
 
