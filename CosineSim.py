@@ -24,7 +24,7 @@ class CosineSim:
         TF_MASK = 2 ** 16 - 1
         with closing(MultiFileReader(self.bucket_name)) as reader:
             locs = index.posting_locs[w]
-            b = reader.readBucket(locs, index.df[w] * TUPLE_SIZE, self.index_type)
+            b = reader.read(locs, index.df[w] * TUPLE_SIZE, self.index_type)
             posting_list = []
             for i in range(index.df[w]):
                 doc_id = int.from_bytes(b[i * TUPLE_SIZE:i * TUPLE_SIZE + 4], 'big')
