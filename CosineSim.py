@@ -10,7 +10,7 @@ import pandas as pd
 class CosineSim:
 
 
-    def __init__(self, index, DL, index_type, page_rank, doc_norm):
+    def __init__(self, index, DL, index_type, page_rank,  doc_norm):
         self.index = index
         self.DL = DL
         self.page_rank = page_rank
@@ -22,10 +22,10 @@ class CosineSim:
 
     def read_posting_list(self, index, w):
         TUPLE_SIZE = 6
-        TF_MASK = 2 ** 16 - 1  # Masking the 16 low bits of an integer
+        TF_MASK = 2 ** 16 - 1
         with closing(MultiFileReader(self.bucket_name)) as reader:
             locs = index.posting_locs[w]
-            b = reader.read(locs, index.df[w] * TUPLE_SIZE, self.index_type)
+            b = reader.readBucket(locs, index.df[w] * TUPLE_SIZE, self.index_type)
             posting_list = []
             for i in range(index.df[w]):
                 doc_id = int.from_bytes(b[i * TUPLE_SIZE:i * TUPLE_SIZE + 4], 'big')
@@ -50,8 +50,6 @@ class CosineSim:
 
     def calcCosineSim(self, query, index, N=100, cosineWeight=0.333):
 
-        epsilon = .0000001
-
         counter = Counter(query)
 
         w_pls_dict = self.get_posting_gen(self.index, query)
@@ -69,10 +67,14 @@ class CosineSim:
 
                 for doc_id, freq in list_of_doc:
 
-                    mone = counter[token] * freq
-                    mechane = normQuery * self.doc_norm[doc_id]
+                    numerator = counter[token] * freq
+                    denominator = normQuery * self.doc_norm[doc_id]
 
-                    simDict[doc_id] = simDict.get(doc_id, 0) + mone/mechane
+                    simDict[doc_id] = simDict.get(doc_id, 0) + numerator/denominator
+
+        for k,v in simDict.items():
+            oldValue = simDict[k]
+            simDict[k] = oldValue * cosineWeight
 
         finalList = self.get_top_n(simDict, N)
 
