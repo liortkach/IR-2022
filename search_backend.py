@@ -88,7 +88,7 @@ def combineListTuplesIntoDict(bm25List=None, cosineList=None, binaryList=None, p
 
 def examineWeights(query_tokens, bm25Algo, cosineAlgo, doc_title_dict, indexTile, pageRank):
 
-    resultsList - []
+    resultsList = []
 
     bm25Weights = np.arange(0, 1, 0.05)
 
