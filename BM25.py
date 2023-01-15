@@ -166,6 +166,6 @@ def merge_results(title_scores, body_scores, N=3):
 
     for item in title_scores + body_scores:
         key, value = item
-        merged_dict[key] += value
+        merged_dict[key] = merged_dict.get(key, 0) + value
 
     return sorted(merged_dict.items(), key=lambda x: x[1], reverse=True)[:N]
