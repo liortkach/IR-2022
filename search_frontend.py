@@ -1,4 +1,3 @@
-import concurrent.futures
 from flask import Flask, request, jsonify
 import pickle
 from google.cloud import storage
@@ -76,12 +75,10 @@ class MyFlaskApp(Flask):
             # word2vec.most_similar(model.get_entity('Ritalin'), 1)
 
         self.BM25_body = BM25(self.body_stem_index, self.DL_body, "_body_stem", self.page_rank, k1=1.5, b=0.65)
-        self.BM25_title = BM25(self.title_stem_index, self.DL_title,  "_title_stem", self.page_rank, k1=2.2, b=0.85)
+        #self.BM25_title = BM25(self.title_stem_index, self.DL_title,  "_title_stem", self.page_rank, k1=2.2, b=0.85)
         self.cosine_body = CosineSim(self.index_body, self.DL_body, "", self.doc_norm)
         #self.cosine_title = CosineSim(self.title_stem_index, self.DL_title, "_title_stem", self.doc_norm)
-
-        #self.executor = concurrent.futures.ThreadPoolExecutor(3)
-
+        
         super(MyFlaskApp, self).run(host=host, port=port, debug=debug, **options)
 
 
@@ -114,26 +111,9 @@ def search():
     # BEGIN SOLUTION
 
     query_stemmed = list(set(app.tokenizer.tokenize(query, True)))
-    #query_regular = list(set(app.tokenizer.tokenize(query, False)))
-
     # experiment 1
-    #title_res = app.BM25_title.search(query_stemmed, 100, 1)
-    body_res = app.BM25_body.search(query_stemmed, 40)
-    #cos_res = app.cosine_title.calcCosineSim(query_stemmed, app.title_stem_index, 100, 1)
-    # experiment 2
-    #resCosBody = app.cosine_body.calcCosineSim(query_stemmed, app.index_body, 100, 1)
-    #resCosTitle = app.cosine_body.calcCosineSim(query_tokens, app.index_body, 100, 0.25)
-
-    # experiment 2
-    #resBinaryBody = getBinaryListResult(app.body_stem_index, query_stemmed, "_body_stem", 100)
-
+    body_res = app.BM25_body.search(query_stemmed, 60)
     resBinarytitle = getDocListResultWithPageRank(app.title_stem_index, query_stemmed, "_title_stem", 60, app.page_rank)
-
-
-    # experiment 3
-    #resBinarytitle = getBinaryListResult(app.title_stem_index, query_stemmed, "_title_stem", 100)
-    #resBinaryAnchor = getBinaryListResult(app.index_anchor, query_regular, "_anchor", 100)
-
     merged_res = merge_results(resBinarytitle, body_res, title_weight=0.75, text_weight=0.25, N=40)
     res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in merged_res]
     # END SOLUTION
