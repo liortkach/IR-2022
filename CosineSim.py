@@ -9,19 +9,19 @@ import pandas as pd
 
 class CosineSim:
 
-    def __init__(self, index, DL, index_type, page_rank,  doc_norm):
+    def __init__(self, index, DL, index_type, doc_norm):
         self.index = index
         self.DL = DL
-        self.page_rank = page_rank
+        #self.page_rank = page_rank
         self.doc_norm = doc_norm
         self.N = len(DL)
         self.AVGDL = sum(DL.values()) / self.N
         self.index_type = index_type
-        self.bucket_name = "ir-208892166"
+        self.bucket_name = "316476431rz"
 
     def read_posting_list(self, index, w):
         TUPLE_SIZE = 6
-        TF_MASK = 2 ** 16 - 1
+        TF_MASK = 2 ** 16 - 1  # Masking the 16 low bits of an integer
         with closing(MultiFileReader(self.bucket_name)) as reader:
             locs = index.posting_locs[w]
             b = reader.read(locs, index.df[w] * TUPLE_SIZE, self.index_type)
@@ -47,7 +47,9 @@ class CosineSim:
         return w_pls_dict
 
 
-    def calcCosineSim(self, query, N=100, cosineWeight=0.333):
+    def calcCosineSim(self, query, index, N=100):
+
+        epsilon = .0000001
 
         counter = Counter(query)
 
@@ -60,20 +62,16 @@ class CosineSim:
         simDict = defaultdict(float)
 
         for token in np.unique(query):
-            if token in self.index.df.keys():  # avoid terms that do not appear in the index.
+            if token in index.df.keys():  # avoid terms that do not appear in the index.
 
                 list_of_doc = pls[words.index(token)]
 
                 for doc_id, freq in list_of_doc:
 
-                    numerator = counter[token] * freq
-                    denominator = normQuery * self.doc_norm[doc_id]
+                    mone = counter[token] * freq
+                    mechane = normQuery * self.doc_norm[doc_id]
 
-                    simDict[doc_id] = simDict.get(doc_id, 0) + numerator/denominator
-
-        for k,v in simDict.items():
-            oldValue = simDict[k]
-            simDict[k] = oldValue * cosineWeight
+                    simDict[doc_id] = simDict.get(doc_id, 0) + mone/mechane
 
         finalList = self.get_top_n(simDict, N)
 
