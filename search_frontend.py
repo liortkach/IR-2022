@@ -251,127 +251,130 @@ def get_pageview():
     # END SOLUTION
     return jsonify(res)
 
-@app.route("/search_test_titles")
-def search_test_titles():
-
-    with open('new_train.json', 'rt') as f:
-        queries = json.load(f)
-
-
-
-    qs_res = []
-    for q, true_wids in queries.items():
-        duration, ap = None, None
-        query_tokens = list(set(app.tokenizer.tokenize(q, True)))
-
-        t_start = time()
-
-        resBM25 = app.BM25_title.search(query_tokens, 100, 1)
-        # future_title = app.executor.submit(app.BM25_title.search,  query_tokens, 100)
-        # resBM25 = merge_results(future_body.result(), future_title.result(), title_weight=0, text_weight=0.2, N=100)
-        resCosBody = app.cosine_title.calcCosineSim(query_tokens, app.index_body, 100, 1)
-        resTitle = getDocListResultWithPageRank(app.title_stem_index, query_tokens, "_title_stem", 100, 0.75, app.page_rank)
-        res = merge_results(resTitle, resBM25Body, 100)
-
-        pred_wids = [tup[0] for tup in res]
-        res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
-        duration = time() - t_start
-
-        ap = average_precision(true_wids, pred_wids)
-
-        qs_res.append((q, duration, ap))
-
-    averageAP = sum([tup[2] for tup in qs_res if tup[2] is not None]) / len(qs_res)
-    averageTime = sum([tup[1] for tup in qs_res if tup[1] is not None]) / len(qs_res)
-
-    file_name = f"TitleWeight={0.75}, BodyWeight={0.25}, duration={averageTime}, ap={averageAP}, time={time()}, PageRank Only Test"
-    blob = app.my_bucket.blob(f"Title+Body/{file_name}")  # change depndes on path
-    blob.upload_from_string(file_name)
-
-    return jsonify(res)
-
-@app.route("/search_test_body_title")
-def search_test_body_title():
-
-    with open('new_train.json', 'rt') as f:
-        queries = json.load(f)
-
-
-
-    qs_res = []
-    queries = list(queries.items())[-10:]
-    for q, true_wids in queries:
-        duration, ap = None, None
-        query_tokens = list(set(app.tokenizer.tokenize(q, True)))
-
-        t_start = time()
-
-        resBM25Body = app.BM25_body.search(query_tokens, 100, 0.25)
-        # future_title = app.executor.submit(app.BM25_title.search,  query_tokens, 100)
-        # resBM25 = merge_results(future_body.result(), future_title.result(), title_weight=0, text_weight=0.2, N=100)
-        # resCosBody = app.cosine_body.calcCosineSim(query_tokens, app.index_body, 100, 0.25)
-        resTitle = getDocListResultWithPageRank(app.title_stem_index, query_tokens, "_title_stem", 100, 0.75, app.page_rank)
-        res = merge_results(resTitle, resBM25Body, 100)
-        pred_wids = [tup[0] for tup in res]
-        res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
-
-        duration = time() - t_start
-
-        ap = average_precision(true_wids, pred_wids)
-
-        qs_res.append((q, duration, ap))
-
-    averageAP = sum([tup[2][0] for tup in qs_res if tup[2][0] is not None]) / len(qs_res)
-    averageRecall = sum([tup[2][1] for tup in qs_res if tup[2][1] is not None]) / len(qs_res)
-    averageTime = sum([tup[1] for tup in qs_res if tup[1] is not None]) / len(qs_res)
-
-    file_name = f"TitleWeight={0.75}, BodyWeight={0.25}, duration={averageTime}, ap={averageAP}, recall={averageRecall}"
-    blob = app.my_bucket.blob(f"Title+Body/{file_name}")  # change depndes on path
-    blob.upload_from_string(file_name)
-
-    return jsonify(res)
-
-@app.route("/search_test_bm25body")
-def search_test_bm25body():
-
-    with open('new_train.json', 'rt') as f:
-        queries = json.load(f)
-
-    BM251 = BM25(app.body_stem_index, app.DL_body, "_body_stem", k1=1.5, b=0.65)
-    BM252 = BM25(app.body_stem_index, app.DL_body, "_body_stem", k1=1.4, b=0.6)
-    BM253 = BM25(app.body_stem_index, app.DL_body, "_body_stem", k1=1.8, b=0.6)
-
-    finList = []
-
-    bmList = [BM251, BM252, BM253]
-
-    for bm in bmList:
-        qs_res = []
-        for q, true_wids in queries.items():
-            duration, ap = None, None
-            query_tokens = list(set(app.tokenizer.tokenize(q, True)))
-
-            t_start = time()
-            res = bm.search(query_tokens, 100, 1)
-            pred_wids = [tup[0] for tup in res]
-            res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
-            duration = time() - t_start
-
-            ap = average_precision(true_wids, pred_wids)
-
-            qs_res.append((q, duration, ap))
-
-        averageAP = sum([tup[2] for tup in qs_res if tup[2] is not None]) / len(qs_res)
-        averageTime = sum([tup[1] for tup in qs_res if tup[1] is not None]) / len(qs_res)
-
-        finList.append(f"{bm}, {averageTime}, {averageAP}")
-
-        # file_name = f"TitleWeight={0.75}, BodyWeight={0.25}, duration={averageTime}, ap={averageAP}, time={time()}, PageRank"
-        # blob = app.my_bucket.blob(f"Title+Body/{file_name}")  # change depndes on path
-        # blob.upload_from_string(file_name)
-
-    return jsonify(finList)
-
 if __name__ == '__main__':
     # run the Flask RESTful API, make the server publicly available (host='0.0.0.0') on port 8080
     app.run(host='0.0.0.0', port=8080, debug=True)
+    
+# Test routes for optimizate paramters.
+# @app.route("/search_test_titles")
+# def search_test_titles():
+
+#     with open('new_train.json', 'rt') as f:
+#         queries = json.load(f)
+
+
+
+#     qs_res = []
+#     for q, true_wids in queries.items():
+#         duration, ap = None, None
+#         query_tokens = list(set(app.tokenizer.tokenize(q, True)))
+
+#         t_start = time()
+
+#         resBM25 = app.BM25_title.search(query_tokens, 100, 1)
+#         # future_title = app.executor.submit(app.BM25_title.search,  query_tokens, 100)
+#         # resBM25 = merge_results(future_body.result(), future_title.result(), title_weight=0, text_weight=0.2, N=100)
+#         resCosBody = app.cosine_title.calcCosineSim(query_tokens, app.index_body, 100, 1)
+#         resTitle = getDocListResultWithPageRank(app.title_stem_index, query_tokens, "_title_stem", 100, 0.75, app.page_rank)
+#         res = merge_results(resTitle, resBM25Body, 100)
+
+#         pred_wids = [tup[0] for tup in res]
+#         res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
+#         duration = time() - t_start
+
+#         ap = average_precision(true_wids, pred_wids)
+
+#         qs_res.append((q, duration, ap))
+
+#     averageAP = sum([tup[2] for tup in qs_res if tup[2] is not None]) / len(qs_res)
+#     averageTime = sum([tup[1] for tup in qs_res if tup[1] is not None]) / len(qs_res)
+
+#     file_name = f"TitleWeight={0.75}, BodyWeight={0.25}, duration={averageTime}, ap={averageAP}, time={time()}, PageRank Only Test"
+#     blob = app.my_bucket.blob(f"Title+Body/{file_name}")  # change depndes on path
+#     blob.upload_from_string(file_name)
+
+#     return jsonify(res)
+
+# @app.route("/search_test_body_title")
+# def search_test_body_title():
+
+#     with open('new_train.json', 'rt') as f:
+#         queries = json.load(f)
+
+
+
+#     qs_res = []
+#     queries = list(queries.items())[-10:]
+#     for q, true_wids in queries:
+#         duration, ap = None, None
+#         query_tokens = list(set(app.tokenizer.tokenize(q, True)))
+
+#         t_start = time()
+
+#         resBM25Body = app.BM25_body.search(query_tokens, 100, 0.25)
+#         # future_title = app.executor.submit(app.BM25_title.search,  query_tokens, 100)
+#         # resBM25 = merge_results(future_body.result(), future_title.result(), title_weight=0, text_weight=0.2, N=100)
+#         # resCosBody = app.cosine_body.calcCosineSim(query_tokens, app.index_body, 100, 0.25)
+#         resTitle = getDocListResultWithPageRank(app.title_stem_index, query_tokens, "_title_stem", 100, 0.75, app.page_rank)
+#         res = merge_results(resTitle, resBM25Body, 100)
+#         pred_wids = [tup[0] for tup in res]
+#         res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
+
+#         duration = time() - t_start
+
+#         ap = average_precision(true_wids, pred_wids)
+
+#         qs_res.append((q, duration, ap))
+
+#     averageAP = sum([tup[2][0] for tup in qs_res if tup[2][0] is not None]) / len(qs_res)
+#     averageRecall = sum([tup[2][1] for tup in qs_res if tup[2][1] is not None]) / len(qs_res)
+#     averageTime = sum([tup[1] for tup in qs_res if tup[1] is not None]) / len(qs_res)
+
+#     file_name = f"TitleWeight={0.75}, BodyWeight={0.25}, duration={averageTime}, ap={averageAP}, recall={averageRecall}"
+#     blob = app.my_bucket.blob(f"Title+Body/{file_name}")  # change depndes on path
+#     blob.upload_from_string(file_name)
+
+#     return jsonify(res)
+
+# @app.route("/search_test_bm25body")
+# def search_test_bm25body():
+
+#     with open('new_train.json', 'rt') as f:
+#         queries = json.load(f)
+
+#     BM251 = BM25(app.body_stem_index, app.DL_body, "_body_stem", k1=1.5, b=0.65)
+#     BM252 = BM25(app.body_stem_index, app.DL_body, "_body_stem", k1=1.4, b=0.6)
+#     BM253 = BM25(app.body_stem_index, app.DL_body, "_body_stem", k1=1.8, b=0.6)
+
+#     finList = []
+
+#     bmList = [BM251, BM252, BM253]
+
+#     for bm in bmList:
+#         qs_res = []
+#         for q, true_wids in queries.items():
+#             duration, ap = None, None
+#             query_tokens = list(set(app.tokenizer.tokenize(q, True)))
+
+#             t_start = time()
+#             res = bm.search(query_tokens, 100, 1)
+#             pred_wids = [tup[0] for tup in res]
+#             res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
+#             duration = time() - t_start
+
+#             ap = average_precision(true_wids, pred_wids)
+
+#             qs_res.append((q, duration, ap))
+
+#         averageAP = sum([tup[2] for tup in qs_res if tup[2] is not None]) / len(qs_res)
+#         averageTime = sum([tup[1] for tup in qs_res if tup[1] is not None]) / len(qs_res)
+
+#         finList.append(f"{bm}, {averageTime}, {averageAP}")
+
+#         # file_name = f"TitleWeight={0.75}, BodyWeight={0.25}, duration={averageTime}, ap={averageAP}, time={time()}, PageRank"
+#         # blob = app.my_bucket.blob(f"Title+Body/{file_name}")  # change depndes on path
+#         # blob.upload_from_string(file_name)
+
+#     return jsonify(finList)
+
+
