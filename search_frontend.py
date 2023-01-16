@@ -3,9 +3,6 @@ from flask import Flask, request, jsonify
 import pickle
 from google.cloud import storage
 from nltk.corpus import stopwords
-from time import time
-
-import BM25
 from Tokenizer import Tokenizer
 from search_backend import *
 from BM25 import *
@@ -13,7 +10,7 @@ import csv
 import pandas as pd
 import re
 from CosineSim import *
-import numpy as np
+import bz2
 
 class MyFlaskApp(Flask):
 
@@ -61,6 +58,7 @@ class MyFlaskApp(Flask):
                 with blob.open('rb') as openfile:
                     self.doc_norm = pickle.load(openfile)
 
+
             elif blob.name == "pageRank.pkl":
                 with blob.open('rb') as openfile:
                     self.tempDict = pickle.load(openfile)
@@ -70,10 +68,19 @@ class MyFlaskApp(Flask):
                 with blob.open('rb') as openfile:
                     self.page_views = pickle.load(openfile)
 
-        self.BM25_body = BM25(self.body_stem_index, self.DL_body, "_body_stem", app.page_rank, k1=1.5, b=0.6)
-        self.BM25_title = BM25(self.title_stem_index, self.DL_title,  "_title_stem", app.page_rank, k1=2.2, b=0.85)
-        self.cosine_body = CosineSim(self.index_body, self.DL_body, "", app.page_rank, self.doc_norm)
-        #self.cosine_title = CosineSim(self.title_index, self.DL_title, "_title_stem", app.page_rank, self.doc_norm)
+             # elif blob.name == "wiki2vec.bin":
+             #    with bz2.BZ2File('wiki2vec.bin', 'r') as f:
+             #         self.word2vec = Wikipedia2Vec.load(f)
+
+            # to use the word2vec model:
+            # word2vec.most_similar(model.get_entity('Ritalin'), 1)
+
+        self.BM25_body = BM25(self.body_stem_index, self.DL_body, "_body_stem", self.page_rank, k1=1.5, b=0.65)
+        self.BM25_title = BM25(self.title_stem_index, self.DL_title,  "_title_stem", self.page_rank, k1=2.2, b=0.85)
+        self.cosine_body = CosineSim(self.index_body, self.DL_body, "", self.doc_norm)
+        #self.cosine_title = CosineSim(self.title_stem_index, self.DL_title, "_title_stem", self.doc_norm)
+
+        #self.executor = concurrent.futures.ThreadPoolExecutor(3)
 
         super(MyFlaskApp, self).run(host=host, port=port, debug=debug, **options)
 
@@ -102,17 +109,33 @@ def search():
     '''
     res = []
     query = request.args.get('query', '')
-    t_start = time()
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-    query_tokens = list(set(app.tokenizer.tokenize(query, True)))
-    resBM25Body = app.BM25_body.search(query_stemmed, 40)
-    resTitle = getDocListResultWithPageRank(app.title_stem_index, query_stemmed, "_title_stem", 60, app.page_rank)
-    res = merge_results(resBinarytitle, body_res, title_weight=0.75, text_weight=0.25, N=40)
-    res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
-    duration = time() - t_start
-    print("Retrieve Time is: " ,duration )
+
+    query_stemmed = list(set(app.tokenizer.tokenize(query, True)))
+    #query_regular = list(set(app.tokenizer.tokenize(query, False)))
+
+    # experiment 1
+    #title_res = app.BM25_title.search(query_stemmed, 100, 1)
+    body_res = app.BM25_body.search(query_stemmed, 40)
+    #cos_res = app.cosine_title.calcCosineSim(query_stemmed, app.title_stem_index, 100, 1)
+    # experiment 2
+    #resCosBody = app.cosine_body.calcCosineSim(query_stemmed, app.index_body, 100, 1)
+    #resCosTitle = app.cosine_body.calcCosineSim(query_tokens, app.index_body, 100, 0.25)
+
+    # experiment 2
+    #resBinaryBody = getBinaryListResult(app.body_stem_index, query_stemmed, "_body_stem", 100)
+
+    resBinarytitle = getDocListResultWithPageRank(app.title_stem_index, query_stemmed, "_title_stem", 60, app.page_rank)
+
+
+    # experiment 3
+    #resBinarytitle = getBinaryListResult(app.title_stem_index, query_stemmed, "_title_stem", 100)
+    #resBinaryAnchor = getBinaryListResult(app.index_anchor, query_regular, "_anchor", 100)
+
+    merged_res = merge_results(resBinarytitle, body_res, title_weight=0.75, text_weight=0.25, N=40)
+    res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in merged_res]
     # END SOLUTION
     return jsonify(res)
 
@@ -139,8 +162,7 @@ def search_body():
     # BEGIN SOLUTION
     res = []
     res_list = app.cosine_body.calcCosineSim(app.tokenizer.tokenize(query, False), app.index_body, N=100)
-    res_list = [(doc_id, app.doc_title_dict[doc_id]) for doc_id, score in res_list]
-    res = res_list
+    res = [(doc_id, app.doc_title_dict[doc_id]) for doc_id, score in res_list]
     # END SOLUTION
     return jsonify(res)
 
@@ -166,8 +188,8 @@ def search_title():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-    res = getDocListResult(app.index_title, app.tokenizer.tokenize(query, False), "_title", 100)
-    res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
+    res_list = getBinaryListResult(app.index_title, app.tokenizer.tokenize(query, False), "_title", 100)
+    res = [(doc_id, app.doc_title_dict[doc_id]) for doc_id, score in res_list]
     # END SOLUTION
     return jsonify(res)
 
@@ -194,8 +216,9 @@ def search_anchor():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-    res = getDocListResult(app.index_anchor, app.tokenizer.tokenize(query, False), "_anchor", 100)
-    res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
+    res_list = getBinaryListResult(app.index_anchor, app.tokenizer.tokenize(query, False), "_anchor", 100)
+    res = [(doc_id, app.doc_title_dict[doc_id]) for doc_id, score in res_list]
+
     # END SOLUTION
     return jsonify(res)
 
@@ -255,126 +278,81 @@ if __name__ == '__main__':
     # run the Flask RESTful API, make the server publicly available (host='0.0.0.0') on port 8080
     app.run(host='0.0.0.0', port=8080, debug=True)
     
-# Test routes for optimizate paramters.
-# @app.route("/search_test_titles")
-# def search_test_titles():
+ # Test routes for testing the optimize parametres.
+"""
+@app.route("/search_test")
+def searchTest():
+    ''' Returns up to a 100 of your best search results for the query. This is
+        the place to put forward your best search engine, and you are free to
+        implement the retrieval whoever you'd like within the bound of the
+        project requirements (efficiency, quality, etc.). That means it is up to
+        you to decide on whether to use stemming, remove stopwords, use
+        PageRank.py, query expansion, etc.
 
-#     with open('new_train.json', 'rt') as f:
-#         queries = json.load(f)
+        To issue a query navigate to a URL like:
+         http://YOUR_SERVER_DOMAIN/search?query=hello+world
+        where YOUR_SERVER_DOMAIN is something like XXXX-XX-XX-XX-XX.ngrok.io
+        if you're using ngrok on Colab or your external IP on GCP.
+    Returns:
+    --------
+        list of up to 100 search results, ordered from best to worst where each
+        element is a tuple (wiki_id, title).
+    '''
+    res = []
+    query = request.args.get('query', '')
+    if len(query) == 0:
+      return jsonify(res)
+    # BEGIN SOLUTION
+    bm25W = 0.5
+    cosineW = 0.5
+    binaryW = 0.333
+    query_tokens = list(set(app.tokenizer.tokenize(query, True)))
+    future_body_bm25 = app.executor.submit(app.BM25_body.search,  query_tokens, 100, bm25W)
+    future_title_bm25 = app.executor.submit(app.BM25_title.search,  query_tokens, 100, bm25W)
+    resBM25 = merge_results(future_body_bm25.result(), future_title_bm25.result(), title_weight=0.4, text_weight=0.6, N=100)
 
+    resCosine = get_topN_score_for_queries(app.tokenizer.tokenize(query, False), app.index_body,
+                                           app.DL_body, app.doc_norm, N=100, cosineWeight=cosineW)
 
+    mergedDict = combineListTuplesIntoDict(bm25List=resBM25, cosineList=resCosine)
 
-#     qs_res = []
-#     for q, true_wids in queries.items():
-#         duration, ap = None, None
-#         query_tokens = list(set(app.tokenizer.tokenize(q, True)))
+    resTop = get_top_n(sim_dict=mergedDict, N=100)
 
-#         t_start = time()
+    res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in resTop]
+    # END SOLUTION
+    return jsonify(res)
 
-#         resBM25 = app.BM25_title.search(query_tokens, 100, 1)
-#         # future_title = app.executor.submit(app.BM25_title.search,  query_tokens, 100)
-#         # resBM25 = merge_results(future_body.result(), future_title.result(), title_weight=0, text_weight=0.2, N=100)
-#         resCosBody = app.cosine_title.calcCosineSim(query_tokens, app.index_body, 100, 1)
-#         resTitle = getDocListResultWithPageRank(app.title_stem_index, query_tokens, "_title_stem", 100, 0.75, app.page_rank)
-#         res = merge_results(resTitle, resBM25Body, 100)
+@app.route("/search_test_cos")
+def search_test_cos():
+    ''' Returns up to a 100 of your best search results for the query. This is
+        the place to put forward your best search engine, and you are free to
+        implement the retrieval whoever you'd like within the bound of the
+        project requirements (efficiency, quality, etc.). That means it is up to
+        you to decide on whether to use stemming, remove stopwords, use
+        PageRank.py, query expansion, etc.
 
-#         pred_wids = [tup[0] for tup in res]
-#         res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
-#         duration = time() - t_start
+        To issue a query navigate to a URL like:
+         http://YOUR_SERVER_DOMAIN/search?query=hello+world
+        where YOUR_SERVER_DOMAIN is something like XXXX-XX-XX-XX-XX.ngrok.io
+        if you're using ngrok on Colab or your external IP on GCP.
+    Returns:
+    --------
+        list of up to 100 search results, ordered from best to worst where each
+        element is a tuple (wiki_id, title).
+    '''
+    res = []
+    query = request.args.get('query', '')
+    if len(query) == 0:
+      return jsonify(res)
+    # BEGIN SOLUTION
 
-#         ap = average_precision(true_wids, pred_wids)
+    cosScores = app.cosine_body.calcCosineSim(app.tokenizer.tokenize(query, True),
+                                        app.index_body, N=100, cosineWeight=1)
+    res = get_top_n(sim_dict=cosScores, N=100)
+    res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
+    # END SOLUTION
+    return jsonify(res)
+"""
 
-#         qs_res.append((q, duration, ap))
-
-#     averageAP = sum([tup[2] for tup in qs_res if tup[2] is not None]) / len(qs_res)
-#     averageTime = sum([tup[1] for tup in qs_res if tup[1] is not None]) / len(qs_res)
-
-#     file_name = f"TitleWeight={0.75}, BodyWeight={0.25}, duration={averageTime}, ap={averageAP}, time={time()}, PageRank Only Test"
-#     blob = app.my_bucket.blob(f"Title+Body/{file_name}")  # change depndes on path
-#     blob.upload_from_string(file_name)
-
-#     return jsonify(res)
-
-# @app.route("/search_test_body_title")
-# def search_test_body_title():
-
-#     with open('new_train.json', 'rt') as f:
-#         queries = json.load(f)
-
-
-
-#     qs_res = []
-#     queries = list(queries.items())[-10:]
-#     for q, true_wids in queries:
-#         duration, ap = None, None
-#         query_tokens = list(set(app.tokenizer.tokenize(q, True)))
-
-#         t_start = time()
-
-#         resBM25Body = app.BM25_body.search(query_tokens, 100, 0.25)
-#         # future_title = app.executor.submit(app.BM25_title.search,  query_tokens, 100)
-#         # resBM25 = merge_results(future_body.result(), future_title.result(), title_weight=0, text_weight=0.2, N=100)
-#         # resCosBody = app.cosine_body.calcCosineSim(query_tokens, app.index_body, 100, 0.25)
-#         resTitle = getDocListResultWithPageRank(app.title_stem_index, query_tokens, "_title_stem", 100, 0.75, app.page_rank)
-#         res = merge_results(resTitle, resBM25Body, 100)
-#         pred_wids = [tup[0] for tup in res]
-#         res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
-
-#         duration = time() - t_start
-
-#         ap = average_precision(true_wids, pred_wids)
-
-#         qs_res.append((q, duration, ap))
-
-#     averageAP = sum([tup[2][0] for tup in qs_res if tup[2][0] is not None]) / len(qs_res)
-#     averageRecall = sum([tup[2][1] for tup in qs_res if tup[2][1] is not None]) / len(qs_res)
-#     averageTime = sum([tup[1] for tup in qs_res if tup[1] is not None]) / len(qs_res)
-
-#     file_name = f"TitleWeight={0.75}, BodyWeight={0.25}, duration={averageTime}, ap={averageAP}, recall={averageRecall}"
-#     blob = app.my_bucket.blob(f"Title+Body/{file_name}")  # change depndes on path
-#     blob.upload_from_string(file_name)
-
-#     return jsonify(res)
-
-# @app.route("/search_test_bm25body")
-# def search_test_bm25body():
-
-#     with open('new_train.json', 'rt') as f:
-#         queries = json.load(f)
-
-#     BM251 = BM25(app.body_stem_index, app.DL_body, "_body_stem", k1=1.5, b=0.65)
-#     BM252 = BM25(app.body_stem_index, app.DL_body, "_body_stem", k1=1.4, b=0.6)
-#     BM253 = BM25(app.body_stem_index, app.DL_body, "_body_stem", k1=1.8, b=0.6)
-
-#     finList = []
-
-#     bmList = [BM251, BM252, BM253]
-
-#     for bm in bmList:
-#         qs_res = []
-#         for q, true_wids in queries.items():
-#             duration, ap = None, None
-#             query_tokens = list(set(app.tokenizer.tokenize(q, True)))
-
-#             t_start = time()
-#             res = bm.search(query_tokens, 100, 1)
-#             pred_wids = [tup[0] for tup in res]
-#             res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
-#             duration = time() - t_start
-
-#             ap = average_precision(true_wids, pred_wids)
-
-#             qs_res.append((q, duration, ap))
-
-#         averageAP = sum([tup[2] for tup in qs_res if tup[2] is not None]) / len(qs_res)
-#         averageTime = sum([tup[1] for tup in qs_res if tup[1] is not None]) / len(qs_res)
-
-#         finList.append(f"{bm}, {averageTime}, {averageAP}")
-
-#         # file_name = f"TitleWeight={0.75}, BodyWeight={0.25}, duration={averageTime}, ap={averageAP}, time={time()}, PageRank"
-#         # blob = app.my_bucket.blob(f"Title+Body/{file_name}")  # change depndes on path
-#         # blob.upload_from_string(file_name)
-
-#     return jsonify(finList)
 
 
