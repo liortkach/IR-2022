@@ -109,13 +109,14 @@ def search():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-
+    t_start = time()
     query_stemmed = list(set(app.tokenizer.tokenize(query, True)))
-    # experiment 1
     body_res = app.BM25_body.search(query_stemmed, 60)
     resBinarytitle = getDocListResultWithPageRank(app.title_stem_index, query_stemmed, "_title_stem", 60, app.page_rank)
     merged_res = merge_results(resBinarytitle, body_res, title_weight=0.75, text_weight=0.25, N=40)
     res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in merged_res]
+    duration = time() - t_start
+    print("Retrievel Time is: ", duration)
     # END SOLUTION
     return jsonify(res)
 
