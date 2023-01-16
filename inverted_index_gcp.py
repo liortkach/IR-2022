@@ -16,7 +16,7 @@ from contextlib import closing
 
 # Let's start with a small block size of 30 bytes just to test things out. 
 BLOCK_SIZE = 1999998
-bucket_name = "ir-208892166"
+bucket_name = "316476431rz"
 client = storage.Client()
 my_bucket = client.bucket(bucket_name=bucket_name)
 
@@ -90,6 +90,9 @@ class MultiFileReader:
         self.close()
         return False
 
+
+from collections import defaultdict
+from contextlib import closing
 
 TUPLE_SIZE = 6       # We're going to pack the doc_id and tf values in this 
                      # many bytes.
@@ -206,5 +209,5 @@ class InvertedIndex:
         bucket = client.bucket(bucket_name)
         blob_posting_locs = bucket.blob(f"postings_gcp/{bucket_id}_posting_locs.pickle")
         blob_posting_locs.upload_from_filename(f"{bucket_id}_posting_locs.pickle")
-    
+
 
