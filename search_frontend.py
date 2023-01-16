@@ -18,7 +18,7 @@ import numpy as np
 class MyFlaskApp(Flask):
 
     def run(self, host=None, port=None, debug=None, **options):
-        bucket_name = "ir-208892166"
+        bucket_name = "316476431rz"
         self.tokenizer = Tokenizer()
         client = storage.Client()
         self.my_bucket = client.bucket(bucket_name=bucket_name)
@@ -102,15 +102,14 @@ def search():
     '''
     res = []
     query = request.args.get('query', '')
-     t_start = time()
+    t_start = time()
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
     query_tokens = list(set(app.tokenizer.tokenize(query, True)))
-
-    resBM25Body = app.BM25_body.search(query_tokens, 100, 0.25)
-    resTitle = getDocListResultWithPageRank(app.title_stem_index, query_tokens, "_title_stem", 100, app.page_rank, 0.75)
-    res = merge_results(resTitle, resBM25Body, 100)
+    resBM25Body = app.BM25_body.search(query_stemmed, 40)
+    resTitle = getDocListResultWithPageRank(app.title_stem_index, query_stemmed, "_title_stem", 60, app.page_rank)
+    res = merge_results(resBinarytitle, body_res, title_weight=0.75, text_weight=0.25, N=40)
     res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
     duration = time() - t_start
     print("Retrieve Time is: " ,duration )
@@ -139,7 +138,7 @@ def search_body():
       return jsonify(res)
     # BEGIN SOLUTION
     res = []
-    res_list = app.cosine_body.calcCosineSim(app.tokenizer.tokenize(query, False), 100,1)
+    res_list = app.cosine_body.calcCosineSim(app.tokenizer.tokenize(query, False), app.index_body, N=100)
     res_list = [(doc_id, app.doc_title_dict[doc_id]) for doc_id, score in res_list]
     res = res_list
     # END SOLUTION
@@ -167,7 +166,7 @@ def search_title():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-    res = getDocListResult(app.index_title, app.tokenizer.tokenize(query, False), "_title", 100, 1)
+    res = getDocListResult(app.index_title, app.tokenizer.tokenize(query, False), "_title", 100)
     res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
     # END SOLUTION
     return jsonify(res)
@@ -195,7 +194,7 @@ def search_anchor():
     if len(query) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-    res = getDocListResult(app.index_anchor, app.tokenizer.tokenize(query, False), "_anchor", 100, 1)
+    res = getDocListResult(app.index_anchor, app.tokenizer.tokenize(query, False), "_anchor", 100)
     res = [(str(doc_id), app.doc_title_dict[doc_id]) for doc_id, score in res]
     # END SOLUTION
     return jsonify(res)
