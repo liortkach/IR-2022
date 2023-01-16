@@ -225,7 +225,7 @@ def get_pagerank():
     if len(wiki_ids) == 0:
       return jsonify(res)
     # BEGIN SOLUTION
-    res = [app.page_rank[wiki_id] for wiki_id in wiki_ids]
+    res = [app.page_rank[str(wiki_id)] for wiki_id in wiki_ids]
     # END SOLUTION
     return jsonify(res)
 
