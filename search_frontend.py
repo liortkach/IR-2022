@@ -10,6 +10,7 @@ import pandas as pd
 import re
 from CosineSim import *
 import bz2
+from time import time
 
 class MyFlaskApp(Flask):
 
